@@ -72,9 +72,9 @@ A few parameters were tweaked including the learning rate and the validation cri
 Ultimately, the only changes to the traning program were increasing the learning rate to 2e-5 and increasing the validation criteria from six trials without improvement to seven.
 The retrained model showed similar results, with a slight increase in validation accuracy to 56.13%.
 
-![Confusion Matrix with Mammatus and Virga](Confusion_v2.png.png) 
+![Confusion Matrix with Mammatus and Virga](Confusion_v2.png) 
 
-![Training Progress](Training_v2.png.png)
+![Training Progress](Training_v2.png)
 
 The confusion matrix shows the same error trends in the extended dataset as in the original.
 For example, the model incorrectly identified altostratus as nimbostratus eight out of 28 times (29%).

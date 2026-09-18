@@ -28,7 +28,7 @@ The confusion matrix and the learning progression are shown below.
 
 ![Confusion Matrix](Confusion_matrix_1.png.png)
 
-![Training Progress](Progression_1.png.png)
+![Training Progress](Progession_1.png.png)
 
 Although the final iteration was only about 49% accurate, the confusion matrix reveals that the majority of the errors are concentrated between certain clouds. 
 For example, 19 Stratus (st) clouds were identified as Strato-cumulus (sc) clouds. 

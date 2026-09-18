@@ -1,6 +1,6 @@
 # MACHINE LEARNING PROJECT - CLOUD IDENTIFICATION
 
-The central objective of this project is to develop and use a Machine Learning (ML) alrogithm to classify objects. This specific study uses MATLAB to classify 10 different types of clouds as defined by the World Meteorological Organization's genera-based classification, as well as an contrails.
+The central objective of this project is to develop and use a Machine Learning (ML) algorithm to classify objects. This specific study uses MATLAB to classify 10 different types of clouds as defined by the World Meteorological Organization's genera-based classification, as well as an contrails.
 Images for cloud classification are gathered from the Cirrus Cumulus Stratus Nimbus (CCSN) Database, which contains 2543 cloud images pre-labeled among the 11 classes.
 Additionally, this project extends the CCSN dataset through the introduction of Mammatus and Virga cloud categories. The significance of these additions will be discussed later.
 The study also aims to classify clouds for the purpose of severe weather threat analysis.
@@ -23,7 +23,7 @@ We also cannot measure these directly through the CNN.
 
 The main training algorithm takes JPEG images (265 x 265 pixels) from the CCSN dataset and splits them randomly into training (70%), validation (15%), and testing (15%) categories. 
 The major parameter that can be altered to adjust machine learning fit is the learning rate. The learning rate for this program was set to 1e-5, a reduction from the initial 1e-4 learning rate.
-This change was made to reduce overfitting.
+This change was made to reduce over fitting.
 The confusion matrix and the learning progression are shown below. 
 
 ![Confusion Matrix](Confusion_matrix_1.png.png)
@@ -37,17 +37,17 @@ This type of error is reasonable and crucially not conducive to major changes in
 Along with looking similar, both types of clouds are associated with slight rain or drizzle and relatively moderate weather.
 For the purposes of identifying clouds to assess their meteorological threat, concentrated error is better than a random spread.
 It is also notable that training data can cluttered by noise.
-A quick google search for both altocumulus and stratocumulus clouds shows the identical image on different sites claiming that they are different clouds.
-It should be obvious then, that the accuracy of the model is limmited by the accuracy of the data. 
-Poor training data as well as a small datasets are likely the main reasons that the model plateus accuracy.
+A quick google search for both Alto-cumulus and Strato-cumulus clouds shows the identical image on different sites claiming that they are different clouds.
+It should be obvious then, that the accuracy of the model is limited by the accuracy of the data. 
+Poor training data as well as a small datasets are likely the main reasons that the model plateaus accuracy.
 
 ![Stratus](st.png.png) ![Stratocumulus](sc.png.png)
 
-This first iteration of the model is able to identify clouds based on highly distincive visual features. 
-Contrails (ct) for example, have the highest validation accuracy at 86.7%, and are easily distinguishable by their thin, straight apprearance.
-The greater consistency in the visual appearane of contrails contributes to greater model accuracy in identification. 
+This first iteration of the model is able to identify clouds based on highly distinctive visual features. 
+Contrails (ct) for example, have the highest validation accuracy at 86.7%, and are easily distinguishable by their thin, straight appearance.
+The greater consistency in the visual appearance of contrails contributes to greater model accuracy in identification. 
 Similarly, cumulus (cu) and cumulonimbus (cb) also have relatively higher degrees of accuracy compared to other classes of clouds.
-The sharp, bubbly edges that define cumulus clouds are visually apparent, and here again model accuracy is benefitted by visual distinction of clouds. 
+The sharp, bubbly edges that define cumulus clouds are visually apparent, and here again model accuracy is benefited by visual distinction of clouds. 
 
 
 

@@ -1,6 +1,6 @@
 # MACHINE LEARNING PROJECT - CLOUD IDENTIFICATION
 
-The central objective of this project is to develop and use a Machine Learning (ML) algorithm to classify objects. This specific study uses MATLAB to classify 10 different types of clouds as defined by the World Meteorological Organization's genera-based classification, as well as an contrails.
+The central objective of this project is to develop and use a Machine Learning (ML) algorithm to classify clouds. This specific study uses MATLAB to classify 10 different types of clouds as defined by the World Meteorological Organization's genera-based classification, as well as an contrails.
 Images for cloud classification are gathered from the Cirrus Cumulus Stratus Nimbus (CCSN) Database, which contains 2543 cloud images pre-labeled among the 11 classes.
 Additionally, this project extends the CCSN dataset through the introduction of Mammatus and Virga cloud categories. 
 The study also aims to classify clouds for the purpose of severe weather threat analysis.

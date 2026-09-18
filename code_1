@@ -1,0 +1,230 @@
+%% =========================================================
+%  CLOUD CLASSIFIER - Main Training Script
+%  
+%  Dataset : CCSN (2543 images, 11 classes, 256x256 JPEG)
+%  Classes : Ac, Sc, Ns, Cu, Ci, Cc, Cb, As, Ct, Cs, St
+%  Approach: Transfer Learning using ResNet-50
+%
+%  Usage:
+%    1. Set DATA_DIR below to your dataset root folder
+%    2. Run this script
+%    3. Trained model is saved to saved_models/
+%
+%  Folder structure expected:
+%    data/
+%      Ac/   (all Ac images)
+%      Sc/   (all Sc images)
+%      Ns/   ...
+%      ...etc
+% =========================================================
+
+clc; clear; close all;
+
+%% ---- 0. CONFIGURATION -----------------------------------------------
+% >> SET THIS to the path of your CCSN dataset root folder
+DATA_DIR = 'CCSN';
+
+% Training hyperparameters
+LEARNING_RATE   = 1e-5;   % Reduced from 1e-4 to reduce overfitting
+MAX_EPOCHS      = 20;
+MINI_BATCH_SIZE = 32;
+VALIDATION_FREQ = 10;     % Validate every N iterations
+TRAIN_SPLIT     = 0.70;   % 70% train
+VAL_SPLIT       = 0.15;   % 15% validation  (remaining 15% = test)
+
+% Early stopping — training halts if validation loss stops improving
+% This prevents wasted epochs once the model has plateaued
+EARLY_STOP_PATIENCE = 6;  % Stop after 6 validations with no improvement
+
+% Input size required by ResNet-50
+IMAGE_SIZE = [224 224 3];
+
+% Where to save outputs
+MODEL_SAVE_DIR = 'saved_models';
+if ~exist(MODEL_SAVE_DIR, 'dir'), mkdir(MODEL_SAVE_DIR); end
+
+%% ---- 1. LOAD & SPLIT DATA -------------------------------------------
+fprintf('=== Step 1: Loading image datastore ===\n');
+
+% imageDatastore automatically assigns labels from subfolder names
+imds = imageDatastore('CCSN_v2', ...
+    'IncludeSubfolders', true, ...
+    'LabelSource',       'foldernames');
+
+% Print class distribution so we can check for imbalance
+fprintf('Classes found:\n');
+tbl = countEachLabel(imds);
+disp(tbl);
+fprintf('Total images: %d\n\n', numel(imds.Files));
+
+% Stratified split — keeps class ratios consistent across sets
+[imdsTrain, imdsValTest] = splitEachLabel(imds, TRAIN_SPLIT, 'randomized');
+relativeValSize = VAL_SPLIT / (1 - TRAIN_SPLIT);   % ~0.5 of the remaining 30%
+[imdsVal, imdsTest] = splitEachLabel(imdsValTest, relativeValSize, 'randomized');
+
+fprintf('Split summary:\n');
+fprintf('  Train      : %d images\n', numel(imdsTrain.Files));
+fprintf('  Validation : %d images\n', numel(imdsVal.Files));
+fprintf('  Test       : %d images\n\n', numel(imdsTest.Files));
+%% ---- 1b. COMPUTE CLASS WEIGHTS --------------------------------------
+fprintf('=== Step 1b: Computing class weights ===\n');
+
+% Count images per class in training set only
+trainTbl    = countEachLabel(imdsTrain);
+numTrain    = numel(imdsTrain.Files);
+numClasses  = numel(trainTbl.Label);
+
+% Inverse frequency weighting — smaller classes get higher weight
+% Formula: weight = total_images / (num_classes * class_count)
+classWeights = numTrain ./ (numClasses .* trainTbl.Count);
+
+fprintf('Class weights assigned:\n');
+for i = 1:numClasses
+    fprintf('  %-5s : %.3f\n', string(trainTbl.Label(i)), classWeights(i));
+end
+fprintf('\n');
+
+
+%% ---- 2. DATA AUGMENTATION -------------------------------------------
+fprintf('=== Step 2: Setting up data augmentation ===\n');
+
+% Augmentation is applied ONLY to training data to artificially
+% expand the dataset and improve generalisation.
+% Validation/test data is only resized — never augmented.
+
+% STRENGTHENED augmentation to fight overfitting.
+% By showing the model more varied versions of each image,
+% we make it harder for it to memorise specific training photos.
+augmentOpts = imageDataAugmenter( ...
+    'RandXReflection',  true, ...          % Random horizontal flip
+    'RandYReflection',  false, ...         % No vertical flip (clouds have up/down)
+    'RandRotation',     [-30 30], ...      % Wider rotation range (was -15 15)
+    'RandXTranslation', [-20 20], ...      % More translation (was -10 10)
+    'RandYTranslation', [-20 20], ...      % More translation (was -10 10)
+    'RandXScale',       [0.8 1.2], ...     % More zoom variation (was 0.9 1.1)
+    'RandYScale',       [0.8 1.2], ...     % More zoom variation (was 0.9 1.1)
+    'RandXShear',       [-10 10], ...      % NEW: slight shearing
+    'RandYShear',       [-10 10]);         % NEW: slight shearing
+
+% augmentedImageDatastore handles resizing + augmentation in the pipeline
+augTrainDS = augmentedImageDatastore(IMAGE_SIZE, imdsTrain, ...
+    'DataAugmentation', augmentOpts, ...
+    'ColorPreprocessing', 'gray2rgb');    % Handle any grayscale images
+
+% Validation and test: resize only, no augmentation
+augValDS  = augmentedImageDatastore(IMAGE_SIZE, imdsVal,  'ColorPreprocessing', 'gray2rgb');
+augTestDS = augmentedImageDatastore(IMAGE_SIZE, imdsTest, 'ColorPreprocessing', 'gray2rgb');
+
+fprintf('Augmentation configured.\n\n');
+
+%% ---- 3. BUILD THE NETWORK -------------------------------------------
+fprintf('=== Step 3: Preparing ResNet-50 for transfer learning ===\n');
+
+% Load ResNet-50 pretrained on ImageNet (1000 classes)
+net = imagePretrainedNetwork("resnet50");
+
+numClasses = numel(categories(imdsTrain.Labels));
+fprintf('Number of output classes: %d\n', numClasses);
+
+% Extract layer graph so we can modify it
+lgraph = layerGraph(net);
+
+% Define replacement layers for our 11-class problem.
+% We insert a DROPOUT layer before the final FC layer —
+% this randomly zeros out 50% of neurons during each training
+% step, forcing the network to learn redundant representations
+% and dramatically reducing overfitting.
+newDropout    = dropoutLayer(0.5, 'Name', 'dropout_clouds');
+
+newFCLayer    = fullyConnectedLayer(numClasses, ...
+    'Name',                  'fc_clouds', ...
+    'WeightLearnRateFactor', 10, ...       % Train new layers 10x faster
+    'BiasLearnRateFactor',   10);
+
+newSoftmax    = softmaxLayer('Name', 'softmax_clouds');
+newClassLayer = classificationLayer( ...
+    'Name',         'output_clouds', ...
+    'Classes',      trainTbl.Label, ...
+    'ClassWeights', classWeights);
+
+% Replace final FC and softmax, then add dropout + classification layer
+lgraph = replaceLayer(lgraph, 'fc1000',         newFCLayer);
+lgraph = replaceLayer(lgraph, 'fc1000_softmax', newSoftmax);
+
+% Add dropout before the FC layer by inserting it between avg_pool and fc_clouds
+lgraph = addLayers(lgraph, newDropout);
+lgraph = disconnectLayers(lgraph, 'avg_pool', 'fc_clouds');
+lgraph = connectLayers(lgraph,    'avg_pool',       'dropout_clouds');
+lgraph = connectLayers(lgraph,    'dropout_clouds', 'fc_clouds');
+
+% Add classification layer at the end
+lgraph = addLayers(lgraph, newClassLayer);
+lgraph = connectLayers(lgraph, 'softmax_clouds', 'output_clouds');
+
+fprintf('Network modified for %d classes.\n\n', numClasses);
+
+%% ---- 4. TRAINING OPTIONS --------------------------------------------
+fprintf('=== Step 4: Configuring training options ===\n');
+
+options = trainingOptions('adam', ...
+    'InitialLearnRate',        LEARNING_RATE, ...
+    'MaxEpochs',               MAX_EPOCHS, ...
+    'MiniBatchSize',           MINI_BATCH_SIZE, ...
+    'ValidationData',          augValDS, ...
+    'ValidationFrequency',     VALIDATION_FREQ, ...
+    'Shuffle',                 'every-epoch', ...
+    'Verbose',                 true, ...
+    'Plots',                   'training-progress', ...
+    'ExecutionEnvironment',    'auto', ...
+    'ValidationPatience',      EARLY_STOP_PATIENCE, ... % Stop early if val loss plateaus
+    'LearnRateSchedule',       'piecewise', ...         % Drop LR mid-training
+    'LearnRateDropFactor',     0.1, ...                 % Multiply LR by 0.1 when dropped
+    'LearnRateDropPeriod',     10);                     % Drop at epoch 10
+
+%% ---- 5. TRAIN -------------------------------------------------------
+fprintf('=== Step 5: Training ===\n');
+fprintf('This may take several minutes. GPU recommended.\n\n');
+
+tic;
+[trainedNet, trainInfo] = trainNetwork(augTrainDS, lgraph, options);
+elapsed = toc;
+
+fprintf('\nTraining complete in %.1f minutes.\n\n', elapsed/60);
+
+%% ---- 6. EVALUATE ON TEST SET ----------------------------------------
+fprintf('=== Step 6: Evaluating on held-out test set ===\n');
+
+[predLabels, scores] = classify(trainedNet, augTestDS);
+trueLabels = imdsTest.Labels;
+
+accuracy = mean(predLabels == trueLabels);
+fprintf('Test Accuracy: %.2f%%\n\n', accuracy * 100);
+
+% Confusion matrix
+figure('Name', 'Confusion Matrix - Test Set');
+cm = confusionchart(trueLabels, predLabels, ...
+    'Title',              'Cloud Type Classification - Test Set', ...
+    'RowSummary',         'row-normalized', ...
+    'ColumnSummary',      'column-normalized');
+
+% Per-class accuracy
+classNames = categories(trueLabels);
+fprintf('Per-class accuracy:\n');
+for i = 1:numClasses
+    idx = trueLabels == classNames{i};
+    classAcc = mean(predLabels(idx) == trueLabels(idx));
+    fprintf('  %-5s : %.2f%%\n', classNames{i}, classAcc * 100);
+end
+
+%% ---- 7. SAVE MODEL --------------------------------------------------
+fprintf('\n=== Step 7: Saving model ===\n');
+
+timestamp   = datestr(now, 'yyyymmdd_HHMM');
+modelFile   = fullfile(MODEL_SAVE_DIR, ['cloud_model_' timestamp '.mat']);
+
+% Save network, class names, training info, and accuracy together
+classLabels = classNames;   %#ok  (suppress unused warning for save)
+save(modelFile, 'trainedNet', 'classLabels', 'trainInfo', 'accuracy');
+
+fprintf('Model saved to: %s\n', modelFile);
+fprintf('\nDone! To classify new images, run: predict_cloud.m\n');

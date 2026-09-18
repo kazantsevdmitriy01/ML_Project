@@ -41,7 +41,7 @@ A quick google search for both altocumulus and stratocumulus clouds shows the id
 It should be obvious then, that the accuracy of the model is limmited by the accuracy of the data. 
 Poor training data as well as a small datasets are likely the main reasons that the model plateus accuracy.
 
-![Stratus](st.png) ![Stratocumulus](sc.png)
+![Stratus](st.png.png) ![Stratocumulus](sc.png.png)
 
 This first iteration of the model is able to identify clouds based on highly distincive visual features. 
 Contrails (ct) for example, have the highest validation accuracy at 86.7%, and are easily distinguishable by their thin, straight apprearance.
@@ -72,9 +72,9 @@ A few parameters were tweaked including the learning rate and the validation cri
 Ultimately, the only changes to the traning program were increasing the learning rate to 2e-5 and increasing the validation criteria from six trials without improvement to seven.
 The retrained model showed similar results, with a slight increase in validation accuracy to 56.13%.
 
-![Confusion Matrix with Mammatus and Virga](Confusion_v2.png) 
+![Confusion Matrix with Mammatus and Virga](Confusion_v2.png.png) 
 
-![Training Progress](Training_v2.png)
+![Training Progress](Training_v2.png.png)
 
 The confusion matrix shows the same error trends in the extended dataset as in the original.
 For example, the model incorrectly identified altostratus as nimbostratus eight out of 28 times (29%).
